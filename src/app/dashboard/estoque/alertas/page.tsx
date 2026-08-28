@@ -1,21 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import type { ProductWithCategory } from "@/types/database";
+import { requireSession, STOCK_ROLES } from "@/lib/auth";
+import type { Product } from "@/types/database";
 
 export default async function AlertsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  const canManage = profile?.role && ["super_admin", "gestor", "almoxarife"].includes(profile.role);
-  if (!canManage) redirect("/dashboard");
+  const { supabase } = await requireSession(STOCK_ROLES);
 
   const { data: lowStockProductsData } = await supabase
     .from("products")
@@ -27,7 +15,7 @@ export default async function AlertsPage() {
     .eq("active", true)
     .order("quantity_current");
 
-  const lowStockProducts = lowStockProductsData as ProductWithCategory[] | null;
+  const lowStockProducts = lowStockProductsData as Product[] | null;
 
   return (
     <div>
@@ -37,7 +25,7 @@ export default async function AlertsPage() {
         <div className="space-y-4">
           {lowStockProducts.map((product) => (
             <div key={product.id} className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
-              <div className="flex items-start justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
@@ -58,7 +46,7 @@ export default async function AlertsPage() {
                     <p className="text-sm text-gray-600 mb-3">{product.description}</p>
                   )}
 
-                  <div className="grid grid-cols-3 gap-4 mt-4">
+                  <div className="grid grid-cols-1 gap-4 mt-4 sm:grid-cols-3">
                     <div>
                       <p className="text-xs text-gray-500">Quantidade Atual</p>
                       <p className="text-lg font-bold text-red-600">
@@ -86,7 +74,7 @@ export default async function AlertsPage() {
                   )}
                 </div>
 
-                <div className="ml-4">
+                <div className="shrink-0 sm:ml-4">
                   <Link
                     href={`/dashboard/estoque/movimentacoes/new?product=${product.id}&type=entrada`}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"

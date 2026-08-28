@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getSession } from "@/lib/auth";
 import { runAiSuggestPipeline } from "@/lib/ai/suggest";
 import type { AiPipelineOutcome, AiSuggestContext } from "@/lib/ai/types";
 import type { SuggestionMessage } from "@/types/modules/suggestions";
@@ -13,10 +13,7 @@ import { buildSummary, clarifyIdea } from "@/lib/suggestions/clarify";
 export async function suggestWithAi(
   input: AiSuggestContext
 ): Promise<AiPipelineOutcome> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await getSession();
 
   if (!user) {
     return { ok: false, code: "UNAUTHORIZED", message: "Não autenticado" };

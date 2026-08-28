@@ -1,24 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { MANAGER_ROLES, requireSession } from "@/lib/auth";
+import { formatDate } from "@/lib/labels";
 import { Card } from "@/components/ui";
 import type { UserGroup } from "@/types/modules/admin";
 
 export default async function GruposPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile || !["super_admin", "gestor"].includes(profile.role)) {
-    redirect("/dashboard");
-  }
+  const { supabase, profile } = await requireSession(MANAGER_ROLES);
 
   const { data: groups, error } = await supabase
     .from("user_groups")
@@ -35,14 +22,14 @@ export default async function GruposPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Grupos de Usuários</h1>
           <p className="text-sm text-gray-600 mt-1">
             Gerencie grupos e suas permissões no sistema
           </p>
         </div>
-        {profile.role === "super_admin" && (
+        {profile?.role === "super_admin" && (
           <Link
             href="/dashboard/admin/grupos/novo"
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
@@ -77,7 +64,7 @@ export default async function GruposPage() {
 
                 <div className="pt-3 border-t border-gray-200">
                   <p className="text-xs text-gray-500">
-                    Criado em {new Date(group.created_at).toLocaleDateString("pt-BR")}
+                    Criado em {formatDate(group.created_at)}
                   </p>
                 </div>
               </div>
@@ -86,11 +73,11 @@ export default async function GruposPage() {
         ))}
       </div>
 
-      {!groups || groups.length === 0 && (
+      {(!groups || groups.length === 0) && (
         <Card>
           <div className="text-center py-12">
             <p className="text-gray-500">Nenhum grupo cadastrado</p>
-            {profile.role === "super_admin" && (
+            {profile?.role === "super_admin" && (
               <Link
                 href="/dashboard/admin/grupos/novo"
                 className="inline-block mt-4 text-primary-600 hover:text-primary-700"

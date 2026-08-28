@@ -1,39 +1,12 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-
-export type ProtocolStatus =
-  | "aberto"
-  | "em_andamento"
-  | "concluido"
-  | "cancelado";
-
-export type ProtocolPriority = "baixa" | "media" | "alta";
-
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { supabase, user: null, profile: null };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, role")
-    .eq("id", user.id)
-    .single();
-
-  return { supabase, user, profile };
-}
-
-function isManager(role?: string | null) {
-  return role === "super_admin" || role === "gestor";
-}
+import { getSession, isManager } from "@/lib/auth";
+import { generateRecordCode } from "@/lib/codes";
+import type { ProtocolPriority, ProtocolStatus } from "@/types/database";
 
 export async function createProtocol(formData: FormData) {
-  const { supabase, user, profile } = await requireUser();
+  const { supabase, user, profile } = await getSession();
   if (!user) throw new Error("Não autenticado");
 
   const title = (formData.get("title") as string)?.trim();
@@ -45,13 +18,7 @@ export async function createProtocol(formData: FormData) {
     throw new Error("Título é obrigatório");
   }
 
-  const now = new Date();
-  const ymd = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-  ].join("");
-  const nup = `NUP-${ymd}-${String(Date.now()).slice(-4)}`;
+  const nup = generateRecordCode("NUP");
 
   const payload: Record<string, unknown> = {
     nup,
@@ -75,7 +42,7 @@ export async function createProtocol(formData: FormData) {
 }
 
 export async function updateProtocol(protocolId: string, formData: FormData) {
-  const { supabase, user, profile } = await requireUser();
+  const { supabase, user, profile } = await getSession();
   if (!user) throw new Error("Não autenticado");
 
   const title = (formData.get("title") as string)?.trim();
@@ -114,7 +81,7 @@ export async function updateProtocol(protocolId: string, formData: FormData) {
 }
 
 export async function deleteProtocol(protocolId: string) {
-  const { supabase, user, profile } = await requireUser();
+  const { supabase, user, profile } = await getSession();
   if (!user) throw new Error("Não autenticado");
 
   const query = supabase.from("protocolos").delete().eq("id", protocolId);

@@ -1,21 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import type { MovementWithDetails } from "@/types";
+import { requireSession, STOCK_ROLES } from "@/lib/auth";
+import { formatDateTime } from "@/lib/labels";
 
 export default async function MovementsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  const canManage = profile?.role && ["super_admin", "gestor", "almoxarife"].includes(profile.role);
-  if (!canManage) redirect("/dashboard");
+  const { supabase } = await requireSession(STOCK_ROLES);
 
   const { data: movements } = await supabase
     .from("movements")
@@ -29,7 +17,7 @@ export default async function MovementsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Movimentações</h1>
         <Link
           href="/dashboard/estoque/movimentacoes/new"
@@ -75,7 +63,7 @@ export default async function MovementsPage() {
                 movements.map((mov) => (
                   <tr key={mov.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(mov.created_at).toLocaleString('pt-BR')}
+                      {formatDateTime(mov.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div>{mov.product?.name}</div>

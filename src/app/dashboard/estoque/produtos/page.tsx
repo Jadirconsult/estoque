@@ -1,18 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import type { ProductWithCategory } from "@/types/database";
+import { canManageStock, requireSession } from "@/lib/auth";
 
 export default async function ProductsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const { supabase, profile } = await requireSession();
 
   const { data: products } = await supabase
     .from("products")
@@ -23,16 +13,11 @@ export default async function ProductsPage() {
     .eq("active", true)
     .order("name");
 
-  const { data: categories } = await supabase
-    .from("categories")
-    .select("*")
-    .order("name");
-
-  const canManage = profile?.role && ["super_admin", "gestor", "almoxarife"].includes(profile.role);
+  const canManage = canManageStock(profile?.role);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Produtos</h1>
         {canManage && (
           <Link
@@ -113,10 +98,10 @@ export default async function ProductsPage() {
                     {canManage && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <Link
-                          href={`/dashboard/estoque/produtos/${product.id}/edit`}
+                          href={`/dashboard/estoque/movimentacoes/new?product=${product.id}`}
                           className="text-blue-600 hover:text-blue-900"
                         >
-                          Editar
+                          Movimentar
                         </Link>
                       </td>
                     )}

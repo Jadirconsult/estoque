@@ -1,24 +1,35 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getSession } from "@/lib/auth";
+
+/**
+ * Grupos e permissões são administração pura: apenas super_admin altera.
+ * Antes a verificação existia só na UI — as actions aceitavam qualquer
+ * usuário autenticado e dependiam exclusivamente do RLS.
+ */
+async function requireSuperAdmin() {
+  const { supabase, user, profile } = await getSession();
+  if (!user) throw new Error("Não autenticado");
+  if (profile?.role !== "super_admin") {
+    throw new Error("Sem permissão para gerenciar grupos");
+  }
+  return { supabase, user };
+}
 
 export async function createGroup(formData: FormData) {
-  const supabase = await createClient();
+  const { supabase, user } = await requireSuperAdmin();
 
-  const name = formData.get("name") as string;
-  const description = formData.get("description") as string;
+  const name = (formData.get("name") as string)?.trim();
+  const description = (formData.get("description") as string)?.trim();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Não autenticado");
+  if (!name) throw new Error("Nome do grupo é obrigatório");
 
-  const { error } = await supabase
-    .from("user_groups")
-    .insert({
-      name,
-      description: description || null,
-      created_by: user.id,
-    });
+  const { error } = await supabase.from("user_groups").insert({
+    name: name.slice(0, 120),
+    description: description || null,
+    created_by: user.id,
+  });
 
   if (error) throw new Error(error.message);
 
@@ -26,15 +37,17 @@ export async function createGroup(formData: FormData) {
 }
 
 export async function updateGroup(groupId: string, formData: FormData) {
-  const supabase = await createClient();
+  const { supabase } = await requireSuperAdmin();
 
-  const name = formData.get("name") as string;
-  const description = formData.get("description") as string;
+  const name = (formData.get("name") as string)?.trim();
+  const description = (formData.get("description") as string)?.trim();
+
+  if (!name) throw new Error("Nome do grupo é obrigatório");
 
   const { error } = await supabase
     .from("user_groups")
     .update({
-      name,
+      name: name.slice(0, 120),
       description: description || null,
     })
     .eq("id", groupId);
@@ -46,12 +59,9 @@ export async function updateGroup(groupId: string, formData: FormData) {
 }
 
 export async function deleteGroup(groupId: string) {
-  const supabase = await createClient();
+  const { supabase } = await requireSuperAdmin();
 
-  const { error } = await supabase
-    .from("user_groups")
-    .delete()
-    .eq("id", groupId);
+  const { error } = await supabase.from("user_groups").delete().eq("id", groupId);
 
   if (error) throw new Error(error.message);
 
@@ -59,18 +69,15 @@ export async function deleteGroup(groupId: string) {
 }
 
 export async function addGroupMember(groupId: string, userId: string) {
-  const supabase = await createClient();
+  const { supabase, user } = await requireSuperAdmin();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Não autenticado");
+  if (!userId) throw new Error("Selecione um usuário");
 
-  const { error } = await supabase
-    .from("group_members")
-    .insert({
-      group_id: groupId,
-      user_id: userId,
-      added_by: user.id,
-    });
+  const { error } = await supabase.from("group_members").insert({
+    group_id: groupId,
+    user_id: userId,
+    added_by: user.id,
+  });
 
   if (error) throw new Error(error.message);
 
@@ -78,7 +85,7 @@ export async function addGroupMember(groupId: string, userId: string) {
 }
 
 export async function removeGroupMember(groupId: string, userId: string) {
-  const supabase = await createClient();
+  const { supabase } = await requireSuperAdmin();
 
   const { error } = await supabase
     .from("group_members")
@@ -92,18 +99,13 @@ export async function removeGroupMember(groupId: string, userId: string) {
 }
 
 export async function addGroupPermission(groupId: string, permissionId: string) {
-  const supabase = await createClient();
+  const { supabase, user } = await requireSuperAdmin();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Não autenticado");
-
-  const { error } = await supabase
-    .from("group_permissions")
-    .insert({
-      group_id: groupId,
-      permission_id: permissionId,
-      granted_by: user.id,
-    });
+  const { error } = await supabase.from("group_permissions").insert({
+    group_id: groupId,
+    permission_id: permissionId,
+    granted_by: user.id,
+  });
 
   if (error) throw new Error(error.message);
 
@@ -111,7 +113,7 @@ export async function addGroupPermission(groupId: string, permissionId: string) 
 }
 
 export async function removeGroupPermission(groupId: string, permissionId: string) {
-  const supabase = await createClient();
+  const { supabase } = await requireSuperAdmin();
 
   const { error } = await supabase
     .from("group_permissions")

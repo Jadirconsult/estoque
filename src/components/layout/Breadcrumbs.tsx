@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { clsx } from "clsx";
 
 interface BreadcrumbItem {
   label: string;
@@ -16,14 +15,18 @@ const moduleLabelMap: Record<string, string> = {
   movimentacoes: "Movimentações",
   alertas: "Alertas",
   relatorios: "Relatórios",
-  certificados: "Certificados",
   ged: "GED",
+  documentos: "Documentos",
+  pastas: "Pastas",
+  busca: "Busca",
   protocolos: "Protocolos",
+  novo: "Novo",
+  new: "Novo",
   admin: "Administração",
   usuarios: "Usuários",
   grupos: "Grupos",
   sugestoes: "Sugestões",
-  auditoria: "Auditoria",
+  profile: "Meu perfil",
 };
 
 export default function Breadcrumbs() {

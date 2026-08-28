@@ -1,24 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { MANAGER_ROLES, requireSession } from "@/lib/auth";
 import AdminSuggestionsClient from "./AdminSuggestionsClient";
 import type { ImprovementSuggestion } from "@/types/modules/suggestions";
 
 export default async function AdminSuggestionsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile || !["super_admin", "gestor"].includes(profile.role)) {
-    redirect("/dashboard");
-  }
+  const { supabase } = await requireSession(MANAGER_ROLES);
 
   const { data: suggestions } = await supabase
     .from("improvement_suggestions")

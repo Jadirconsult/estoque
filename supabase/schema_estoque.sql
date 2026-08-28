@@ -1,5 +1,6 @@
 -- ============================================================
 -- SCHEMA: Sistema de Controle de Estoque - OCRAL
+-- Versão idempotente: pode ser reexecutada com segurança.
 -- Execute no Supabase Dashboard → SQL Editor
 -- ============================================================
 
@@ -7,14 +8,18 @@
 create extension if not exists "uuid-ossp";
 
 -- ============================================================
--- ENUM: roles de usuário
+-- ENUM: roles de usuário (só cria se não existir)
 -- ============================================================
-create type user_role as enum ('super_admin', 'gestor', 'almoxarife', 'requisitante');
+do $$ begin
+  create type user_role as enum ('super_admin', 'gestor', 'almoxarife', 'requisitante');
+exception
+  when duplicate_object then null;
+end $$;
 
 -- ============================================================
--- TABELA: profiles (estende auth.users do Supabase)
+-- TABELA: profiles (só cria se não existir)
 -- ============================================================
-create table profiles (
+create table if not exists profiles (
   id uuid references auth.users(id) on delete cascade primary key,
   email text not null unique,
   full_name text,
@@ -26,9 +31,9 @@ create table profiles (
 );
 
 -- ============================================================
--- TABELA: categories (categorias de produtos)
+-- TABELA: categories (só cria se não existir)
 -- ============================================================
-create table categories (
+create table if not exists categories (
   id uuid primary key default uuid_generate_v4(),
   name text not null unique,
   description text,
@@ -36,9 +41,9 @@ create table categories (
 );
 
 -- ============================================================
--- TABELA: products (produtos do almoxarifado)
+-- TABELA: products (só cria se não existir)
 -- ============================================================
-create table products (
+create table if not exists products (
   id uuid primary key default uuid_generate_v4(),
   code text not null unique,
   name text not null,
@@ -58,9 +63,9 @@ create table products (
 );
 
 -- ============================================================
--- TABELA: movements (movimentações de estoque)
+-- TABELA: movements (só cria se não existir)
 -- ============================================================
-create table movements (
+create table if not exists movements (
   id uuid primary key default uuid_generate_v4(),
   product_id uuid references products(id) on delete cascade not null,
   type text not null check (type in ('entrada', 'saida')),
@@ -74,9 +79,9 @@ create table movements (
 );
 
 -- ============================================================
--- TABELA: notifications (notificações do usuário)
+-- TABELA: notifications (só cria se não existir)
 -- ============================================================
-create table notifications (
+create table if not exists notifications (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references profiles(id) on delete cascade not null,
   title text not null,
@@ -87,9 +92,9 @@ create table notifications (
 );
 
 -- ============================================================
--- TABELA: protocolos (protocolos do sistema)
+-- TABELA: protocolos (só cria se não existir)
 -- ============================================================
-create table protocolos (
+create table if not exists protocolos (
   id uuid primary key default uuid_generate_v4(),
   nup text not null unique,
   title text not null,
@@ -122,6 +127,8 @@ begin
 end;
 $$ language plpgsql security definer;
 
+-- Criar trigger (drop antes se já existir)
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
@@ -137,10 +144,12 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists profiles_updated_at on profiles;
 create trigger profiles_updated_at
   before update on profiles
   for each row execute function update_updated_at();
 
+drop trigger if exists products_updated_at on products;
 create trigger products_updated_at
   before update on products
   for each row execute function update_updated_at();
@@ -176,6 +185,7 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists movement_update_quantity on movements;
 create trigger movement_update_quantity
   before insert on movements
   for each row execute function update_product_quantity();
@@ -187,14 +197,17 @@ alter table profiles enable row level security;
 alter table categories enable row level security;
 alter table products enable row level security;
 alter table movements enable row level security;
+alter table protocolos enable row level security;
 
 -- ============================================================
--- RLS POLICIES: profiles
+-- RLS POLICIES: profiles (drop antes de criar)
 -- ============================================================
+drop policy if exists "Usuário vê seu próprio perfil" on profiles;
 create policy "Usuário vê seu próprio perfil"
   on profiles for select
   using (auth.uid() = id);
 
+drop policy if exists "Super admin e gestor veem todos os perfis" on profiles;
 create policy "Super admin e gestor veem todos os perfis"
   on profiles for select
   using (
@@ -204,6 +217,7 @@ create policy "Super admin e gestor veem todos os perfis"
     )
   );
 
+drop policy if exists "Super admin atualiza qualquer perfil" on profiles;
 create policy "Super admin atualiza qualquer perfil"
   on profiles for update
   using (
@@ -213,6 +227,7 @@ create policy "Super admin atualiza qualquer perfil"
     )
   );
 
+drop policy if exists "Usuário atualiza seu próprio perfil" on profiles;
 create policy "Usuário atualiza seu próprio perfil"
   on profiles for update
   using (auth.uid() = id)
@@ -221,10 +236,12 @@ create policy "Usuário atualiza seu próprio perfil"
 -- ============================================================
 -- RLS POLICIES: categories
 -- ============================================================
+drop policy if exists "Todos veem categorias" on categories;
 create policy "Todos veem categorias"
   on categories for select
   using (auth.role() = 'authenticated');
 
+drop policy if exists "Super admin e gestor gerenciam categorias" on categories;
 create policy "Super admin e gestor gerenciam categorias"
   on categories for all
   using (
@@ -237,10 +254,12 @@ create policy "Super admin e gestor gerenciam categorias"
 -- ============================================================
 -- RLS POLICIES: products
 -- ============================================================
+drop policy if exists "Todos veem produtos ativos" on products;
 create policy "Todos veem produtos ativos"
   on products for select
   using (auth.role() = 'authenticated' and active = true);
 
+drop policy if exists "Super admin vê todos os produtos" on products;
 create policy "Super admin vê todos os produtos"
   on products for select
   using (
@@ -250,6 +269,7 @@ create policy "Super admin vê todos os produtos"
     )
   );
 
+drop policy if exists "Super admin, gestor e almoxarife gerenciam produtos" on products;
 create policy "Super admin, gestor e almoxarife gerenciam produtos"
   on products for all
   using (
@@ -262,10 +282,12 @@ create policy "Super admin, gestor e almoxarife gerenciam produtos"
 -- ============================================================
 -- RLS POLICIES: movements
 -- ============================================================
+drop policy if exists "Todos veem movimentações" on movements;
 create policy "Todos veem movimentações"
   on movements for select
   using (auth.role() = 'authenticated');
 
+drop policy if exists "Almoxarife registra movimentações" on movements;
 create policy "Almoxarife registra movimentações"
   on movements for insert
   with check (
@@ -275,12 +297,41 @@ create policy "Almoxarife registra movimentações"
     )
   );
 
+
 -- ============================================================
--- RLS: protocolo
+-- RLS: notifications
+-- Cada usuário enxerga e marca como lidas apenas as próprias notificações.
+-- ============================================================
+alter table notifications enable row level security;
+
+drop policy if exists "Usuário vê suas notificações" on notifications;
+create policy "Usuário vê suas notificações"
+  on notifications for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Usuário atualiza suas notificações" on notifications;
+create policy "Usuário atualiza suas notificações"
+  on notifications for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Gestão cria notificações" on notifications;
+create policy "Gestão cria notificações"
+  on notifications for insert
+  with check (
+    exists (
+      select 1 from profiles p
+      where p.id = auth.uid() and p.role in ('super_admin', 'gestor')
+    )
+  );
+
+-- ============================================================
+-- RLS: protocolos
 -- ============================================================
 alter table protocolos enable row level security;
 
-create policy "Usuário vê seus próprios protocolos ou protocolos atribuídos" 
+drop policy if exists "Usuário vê seus próprios protocolos ou protocolos atribuídos" on protocolos;
+create policy "Usuário vê seus próprios protocolos ou protocolos atribuídos"
   on protocolos for select
   using (
     auth.uid() = requester_id
@@ -291,13 +342,13 @@ create policy "Usuário vê seus próprios protocolos ou protocolos atribuídos"
     )
   );
 
-create policy "Usuário cria protocolo próprio" 
+drop policy if exists "Usuário cria protocolo próprio" on protocolos;
+create policy "Usuário cria protocolo próprio"
   on protocolos for insert
-  with check (
-    auth.uid() = requester_id
-  );
+  with check (auth.uid() = requester_id);
 
-create policy "Usuário atualiza seu próprio protocolo" 
+drop policy if exists "Usuário atualiza seu próprio protocolo" on protocolos;
+create policy "Usuário atualiza seu próprio protocolo"
   on protocolos for update
   using (
     auth.uid() = requester_id
@@ -314,7 +365,8 @@ create policy "Usuário atualiza seu próprio protocolo"
     )
   );
 
-create policy "Usuário exclui seu próprio protocolo" 
+drop policy if exists "Usuário exclui seu próprio protocolo" on protocolos;
+create policy "Usuário exclui seu próprio protocolo"
   on protocolos for delete
   using (
     auth.uid() = requester_id
@@ -325,11 +377,14 @@ create policy "Usuário exclui seu próprio protocolo"
   );
 
 -- ============================================================
--- DADOS INICIAIS: categorias padrão
+-- DADOS INICIAIS: categorias padrão (só insere se não existir)
 -- ============================================================
-insert into categories (name, description) values
+insert into categories (name, description)
+select * from (values
   ('Material de Escritório', 'Papéis, canetas, pastas e outros materiais de escritório'),
   ('Informática', 'Computadores, notebooks, monitores e periféricos'),
   ('Impressoras', 'Impressoras, scanners e equipamentos de impressão'),
   ('Consumíveis de Impressão', 'Cartuchos, toners e ribbons'),
-  ('Material de Limpeza', 'Produtos e equipamentos de limpeza e higiene');
+  ('Material de Limpeza', 'Produtos e equipamentos de limpeza e higiene')
+) as v(name, description)
+where not exists (select 1 from categories where categories.name = v.name);

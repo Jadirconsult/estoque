@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { deleteProtocol, updateProtocol } from "@/app/actions/protocols";
-import { Button } from "@/components/ui";
-import type { Profile, Protocol } from "@/types/database";
+import { Button, ConfirmSubmitButton } from "@/components/ui";
+import { isManager, requireSession } from "@/lib/auth";
+import { formatDate, priorityLabel, protocolStatusLabel } from "@/lib/labels";
 
 const statusOptions = [
   { value: "aberto", label: "Aberto" },
@@ -19,26 +19,15 @@ const priorityOptions = [
 ];
 
 export default async function ProtocolosDetalhesPage({ params }: { params: { id: string } }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const canManage = profile?.role && ["super_admin", "gestor"].includes(profile.role);
+  const { supabase, user, profile } = await requireSession();
+  const canManage = isManager(profile?.role);
 
   const { data: protocol, error } = await supabase
     .from("protocolos")
     .select(`
       *,
-      requester:profiles(id, full_name, email),
-      assigned_to:profiles(id, full_name, email)
+      requester:profiles!protocolos_requester_id_fkey(id, full_name, email),
+      assigned_to:profiles!protocolos_assigned_to_fkey(id, full_name, email)
     `)
     .eq("id", params.id)
     .single();
@@ -72,12 +61,12 @@ export default async function ProtocolosDetalhesPage({ params }: { params: { id:
           </Link>
           {canEdit && (
             <form action={deleteProtocol.bind(null, params.id)}>
-              <button
-                type="submit"
+              <ConfirmSubmitButton
+                message="Tem certeza que deseja excluir este protocolo?"
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
               >
                 Excluir
-              </button>
+              </ConfirmSubmitButton>
             </form>
           )}
         </div>
@@ -96,11 +85,11 @@ export default async function ProtocolosDetalhesPage({ params }: { params: { id:
             </div>
             <div>
               <span className="text-sm text-gray-500">Criado em</span>
-              <p className="text-base font-medium text-gray-900">{new Date(protocol.created_at).toLocaleDateString("pt-BR")}</p>
+              <p className="text-base font-medium text-gray-900">{formatDate(protocol.created_at)}</p>
             </div>
             <div>
               <span className="text-sm text-gray-500">Última atualização</span>
-              <p className="text-base font-medium text-gray-900">{new Date(protocol.updated_at).toLocaleDateString("pt-BR")}</p>
+              <p className="text-base font-medium text-gray-900">{formatDate(protocol.updated_at)}</p>
             </div>
           </div>
         </section>
@@ -109,11 +98,11 @@ export default async function ProtocolosDetalhesPage({ params }: { params: { id:
           <div className="space-y-4">
             <div>
               <span className="text-sm text-gray-500">Status</span>
-              <p className="text-base font-medium text-gray-900 capitalize">{protocol.status.replace("_", " ")}</p>
+              <p className="text-base font-medium text-gray-900">{protocolStatusLabel(protocol.status)}</p>
             </div>
             <div>
               <span className="text-sm text-gray-500">Prioridade</span>
-              <p className="text-base font-medium text-gray-900 capitalize">{protocol.priority}</p>
+              <p className="text-base font-medium text-gray-900">{priorityLabel(protocol.priority)}</p>
             </div>
           </div>
         </section>

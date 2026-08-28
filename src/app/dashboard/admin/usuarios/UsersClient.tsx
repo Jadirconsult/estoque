@@ -1,16 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { setUserActive, updateUserRole } from "@/app/actions/users";
+import { ROLE_LABELS, roleLabel } from "@/lib/labels";
 import type { Profile, UserRole } from "@/types";
 
-const roleLabel: Record<string, string> = {
-  super_admin: "Super Admin",
-  gestor: "Gestor",
-  almoxarife: "Almoxarife",
-  requisitante: "Requisitante",
-};
+type Feedback = { kind: "ok" | "erro"; text: string } | null;
 
 export default function UsersClient({
   users,
@@ -20,47 +16,49 @@ export default function UsersClient({
   currentRole: string;
 }) {
   const router = useRouter();
-  const supabase = createClient();
-  const [loading, setLoading] = useState<string | null>(null);
-  const [msg, setMsg] = useState("");
-
-  async function updateRole(userId: string, role: UserRole) {
-    setLoading(userId);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ role })
-      .eq("id", userId);
-    if (error) setMsg("Erro: " + error.message);
-    else { setMsg("Perfil atualizado!"); router.refresh(); }
-    setLoading(null);
-  }
-
-  async function toggleActive(userId: string, active: boolean) {
-    setLoading(userId);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ active: !active })
-      .eq("id", userId);
-    if (error) setMsg("Erro: " + error.message);
-    else { setMsg("Usuário atualizado!"); router.refresh(); }
-    setLoading(null);
-  }
+  const [pending, startTransition] = useTransition();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback>(null);
 
   const availableRoles: UserRole[] =
     currentRole === "super_admin"
       ? ["super_admin", "gestor", "almoxarife", "requisitante"]
       : ["almoxarife", "requisitante"];
 
+  function run(userId: string, action: () => Promise<{ ok: boolean; message?: string }>) {
+    setBusyId(userId);
+    setFeedback(null);
+    startTransition(async () => {
+      const result = await action();
+      if (result.ok) {
+        setFeedback({ kind: "ok", text: "Usuário atualizado." });
+        router.refresh();
+      } else {
+        setFeedback({ kind: "erro", text: result.message ?? "Erro ao atualizar." });
+      }
+      setBusyId(null);
+    });
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Usuários</h1>
 
-      {msg && (
-        <p className="text-sm bg-green-50 text-green-700 rounded-lg px-3 py-2 mb-4">{msg}</p>
+      {feedback && (
+        <p
+          className={`text-sm rounded-lg px-3 py-2 mb-4 ${
+            feedback.kind === "ok"
+              ? "bg-green-50 text-green-700"
+              : "bg-red-50 text-red-700"
+          }`}
+        >
+          {feedback.text}
+        </p>
       )}
 
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
               <th className="px-4 py-3 text-left">Nome / Email</th>
@@ -70,46 +68,67 @@ export default function UsersClient({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {users.map((u) => (
-              <tr key={u.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <p className="font-medium text-gray-800">{u.full_name || "—"}</p>
-                  <p className="text-gray-400 text-xs">{u.email}</p>
-                </td>
-                <td className="px-4 py-3">
-                  {currentRole === "super_admin" || u.role === "requisitante" || u.role === "almoxarife" ? (
-                    <select
-                      value={u.role}
-                      disabled={loading === u.id}
-                      onChange={(e) => updateRole(u.id, e.target.value as UserRole)}
-                      className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+            {users.map((u) => {
+              const editable =
+                currentRole === "super_admin" ||
+                u.role === "requisitante" ||
+                u.role === "almoxarife";
+              const busy = pending && busyId === u.id;
+
+              return (
+                <tr key={u.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-gray-800">{u.full_name || "—"}</p>
+                    <p className="text-gray-400 text-xs">{u.email}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {editable ? (
+                      <select
+                        value={u.role}
+                        disabled={busy}
+                        onChange={(e) =>
+                          run(u.id, () =>
+                            updateUserRole(u.id, e.target.value as UserRole)
+                          )
+                        }
+                        className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:opacity-50"
+                      >
+                        {availableRoles.map((r) => (
+                          <option key={r} value={r}>
+                            {ROLE_LABELS[r]}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-gray-600">{roleLabel(u.role)}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`text-xs rounded-full px-2 py-0.5 ${
+                        u.active
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-600"
+                      }`}
                     >
-                      {availableRoles.map((r) => (
-                        <option key={r} value={r}>{roleLabel[r]}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="text-gray-600">{roleLabel[u.role]}</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs rounded-full px-2 py-0.5 ${u.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-                    {u.active ? "Ativo" : "Inativo"}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <button
-                    disabled={loading === u.id}
-                    onClick={() => toggleActive(u.id, u.active)}
-                    className="text-xs text-primary-600 hover:underline disabled:opacity-50"
-                  >
-                    {u.active ? "Desativar" : "Ativar"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+                      {u.active ? "Ativo" : "Inativo"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      disabled={busy}
+                      onClick={() => run(u.id, () => setUserActive(u.id, !u.active))}
+                      className="text-xs text-primary-600 hover:underline disabled:opacity-50"
+                    >
+                      {u.active ? "Desativar" : "Ativar"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

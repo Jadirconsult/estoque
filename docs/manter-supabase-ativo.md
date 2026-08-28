@@ -13,7 +13,36 @@ SUPABASE_SERVICE_ROLE_KEY=sua_chave_service_role
 CRON_SECRET=um-segredo-longo-e-aleatorio
 ```
 
-Agende uma chamada diária ao endereço abaixo no serviço de monitoramento ou agendamento de sua preferência:
+## Agendamento automático (já configurado no repositório)
+
+Duas rotinas independentes chamam o endpoint, para que a pausa não dependa de
+um único serviço:
+
+1. **Vercel Cron** — `vercel.json` agenda `/api/internal/keep-alive` todos os
+   dias às 06:00 UTC. A Vercel envia sozinha o cabeçalho
+   `Authorization: Bearer $CRON_SECRET` quando a variável `CRON_SECRET` existe
+   nas variáveis de ambiente do projeto. Basta definir `CRON_SECRET` no painel
+   da Vercel (Production) — nada mais é necessário.
+
+2. **GitHub Actions** — `.github/workflows/keep-alive.yml` repete a chamada às
+   segundas e quintas. Exige dois secrets no repositório
+   (Settings → Secrets and variables → Actions):
+
+   | Secret | Valor |
+   | --- | --- |
+   | `APP_URL` | URL de produção, sem barra final (ex.: `https://ocral.vercel.app`) |
+   | `CRON_SECRET` | o mesmo valor definido na Vercel |
+
+   O workflow também pode ser disparado manualmente em Actions → *Manter
+   Supabase ativo* → *Run workflow*, útil para testar a configuração.
+
+Como o Supabase pausa após cerca de sete dias de inatividade, qualquer uma das
+duas rotinas sozinha já mantém o banco ativo; juntas, cobrem a falha da outra.
+
+## Agendamento manual (alternativa)
+
+Se preferir um serviço externo de monitoramento, agende uma chamada diária ao
+endereço abaixo:
 
 ```text
 https://SEU-DOMINIO/api/internal/keep-alive
