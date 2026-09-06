@@ -54,12 +54,20 @@ export default async function GedDocumentosPage({
             Indexação, histórico, assinatura e retenção documental.
           </p>
         </div>
-        <Link
-          href="/dashboard/ged"
-          className="inline-flex shrink-0 items-center justify-center rounded-full border border-[var(--stroke)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:translate-y-[-1px]"
-        >
-          Voltar ao painel
-        </Link>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Link
+            href="/dashboard/ged"
+            className="inline-flex items-center justify-center rounded-full border border-[var(--stroke)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition hover:translate-y-[-1px]"
+          >
+            Voltar ao painel
+          </Link>
+          <Link
+            href="/dashboard/ged/documentos/novo"
+            className="inline-flex items-center justify-center rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-bold text-white shadow-[10px_10px_18px_rgba(122,109,216,0.28)] hover:brightness-105"
+          >
+            Novo documento
+          </Link>
+        </div>
       </div>
 
       <section className="neo-card p-5">
@@ -137,6 +145,9 @@ export default async function GedDocumentosPage({
                 <th className="px-4 py-3 text-xs font-bold uppercase tracking-[0.12em]">
                   Validade
                 </th>
+                <th className="px-4 py-3 text-xs font-bold uppercase tracking-[0.12em]">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -168,12 +179,20 @@ export default async function GedDocumentosPage({
                     <td className="px-4 py-3 text-sm text-[var(--muted)]">
                       {document.validade ? formatDate(document.validade) : "—"}
                     </td>
+                    <td className="px-4 py-3 text-sm">
+                      <Link
+                        href={`/dashboard/ged/documentos/${document.id}`}
+                        className="font-semibold text-[var(--primary-strong)] hover:underline"
+                      >
+                        Abrir
+                      </Link>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-10 text-center text-sm text-[var(--muted)]"
                   >
                     Nenhum documento encontrado para os filtros aplicados.
