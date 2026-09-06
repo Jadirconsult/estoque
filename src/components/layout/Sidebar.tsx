@@ -206,7 +206,7 @@ export default function Sidebar({
         {!isCollapsed && (
           <div className="min-w-0">
             <p className="truncate text-lg font-extrabold tracking-tight text-[var(--text)]">
-              Estoque OCRAL
+              Ocral
             </p>
             <p className="mt-1 text-xs text-[var(--muted)]">Almoxarifado e gestão</p>
           </div>
