@@ -45,7 +45,7 @@ src/
 
 supabase/
 ├── schema_estoque.sql     # Schema original
-├── schema_estoque_safe.sql # Schema idempotente
+├── schema_ged.sql          # Schema do módulo GED
 └── fix_trigger_and_create_user.sql
 ```
 

@@ -1,7 +1,8 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { getSession, isManager } from "@/lib/auth";
+import { generateRecordCode } from "@/lib/codes";
 import type {
   CreateSuggestionInput,
   ImprovementSuggestion,
@@ -13,30 +14,10 @@ type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; message: string };
 
-async function requireUser() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { supabase, user: null, profile: null };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  return { supabase, user, profile };
-}
-
-function isManager(role?: string | null) {
-  return role === "super_admin" || role === "gestor";
-}
-
 export async function createSuggestion(
   input: CreateSuggestionInput
 ): Promise<ActionResult<ImprovementSuggestion>> {
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await getSession();
   if (!user) return { ok: false, message: "Não autenticado" };
 
   const title = input.title?.trim();
@@ -53,13 +34,7 @@ export async function createSuggestion(
     return { ok: false, message: "Gere o resumo antes de enviar." };
   }
 
-  const today = new Date();
-  const ymd = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, "0"),
-    String(today.getDate()).padStart(2, "0"),
-  ].join("");
-  const code = `SUG-${ymd}-${String(Date.now()).slice(-4)}`;
+  const code = generateRecordCode("SUG");
 
   const { data, error } = await supabase
     .from("improvement_suggestions")
@@ -104,7 +79,7 @@ export async function createSuggestion(
 export async function listMySuggestions(): Promise<
   ActionResult<ImprovementSuggestion[]>
 > {
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await getSession();
   if (!user) return { ok: false, message: "Não autenticado" };
 
   const { data, error } = await supabase
@@ -121,7 +96,7 @@ export async function listMySuggestions(): Promise<
 export async function listAllSuggestions(): Promise<
   ActionResult<ImprovementSuggestion[]>
 > {
-  const { supabase, user, profile } = await requireUser();
+  const { supabase, user, profile } = await getSession();
   if (!user) return { ok: false, message: "Não autenticado" };
   if (!isManager(profile?.role)) {
     return { ok: false, message: "Sem permissão" };
@@ -148,7 +123,7 @@ export async function updateSuggestionStatus(
   admin_notes?: string,
   priority?: SuggestionPriority
 ): Promise<ActionResult<ImprovementSuggestion>> {
-  const { supabase, user, profile } = await requireUser();
+  const { supabase, user, profile } = await getSession();
   if (!user) return { ok: false, message: "Não autenticado" };
   if (!isManager(profile?.role)) {
     return { ok: false, message: "Sem permissão" };
@@ -179,7 +154,7 @@ export async function updateSuggestionStatus(
 export async function cancelMySuggestion(
   id: string
 ): Promise<ActionResult<void>> {
-  const { supabase, user } = await requireUser();
+  const { supabase, user } = await getSession();
   if (!user) return { ok: false, message: "Não autenticado" };
 
   const { error } = await supabase

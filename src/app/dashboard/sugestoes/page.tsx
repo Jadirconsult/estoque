@@ -1,6 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { requireSession } from "@/lib/auth";
+import { formatDateTime } from "@/lib/labels";
 import {
   SUGGESTION_PRIORITY_LABELS,
   SUGGESTION_STATUS_COLORS,
@@ -9,11 +9,7 @@ import {
 } from "@/types/modules/suggestions";
 
 export default async function MySuggestionsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
+  const { supabase, user } = await requireSession();
 
   const { data: suggestions } = await supabase
     .from("improvement_suggestions")
@@ -24,7 +20,7 @@ export default async function MySuggestionsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Meus pedidos</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -68,7 +64,7 @@ export default async function MySuggestionsPage() {
                 <p className="text-sm text-gray-600 mt-2">{s.summary}</p>
                 <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
                   <span>
-                    {new Date(s.created_at).toLocaleString("pt-BR")}
+                    {formatDateTime(s.created_at)}
                   </span>
                   <span>
                     Prioridade: {SUGGESTION_PRIORITY_LABELS[s.priority]}

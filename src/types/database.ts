@@ -36,10 +36,6 @@ export interface Product {
   updated_at: string;
 }
 
-export interface ProductWithCategory extends Product {
-  category?: Category | null;
-}
-
 export type MovementType = 'entrada' | 'saida';
 
 export interface Movement {

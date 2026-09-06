@@ -11,10 +11,18 @@
 5. Cole no editor e clique em **Run**
 
 Isso criará:
-- Tabelas: `profiles`, `categories`, `products`, `movements`
+- Tabelas: `profiles`, `categories`, `products`, `movements`, `notifications`, `protocolos`
 - Funções automáticas para atualização de estoque
-- Políticas de segurança (RLS)
+- Políticas de segurança (RLS) em todas as tabelas
 - 5 categorias padrão (Material de Escritório, Informática, etc)
+
+O arquivo é idempotente: pode ser executado novamente sem quebrar o que já existe.
+
+### 1.1.1. Demais schemas
+
+Depois do schema principal, aplique na ordem os schemas por feature
+(auditoria, grupos e permissões, sugestões e GED). A lista completa e a ordem
+estão em [docs/APLICAR_SQL.md](docs/APLICAR_SQL.md).
 
 ### 1.2. Configurar Variáveis de Ambiente
 
@@ -24,7 +32,12 @@ Crie um arquivo `.env.local` na raiz do projeto com:
 NEXT_PUBLIC_SUPABASE_URL=https://ffsymnxutfjmvwnurfby.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anon_aqui
 SUPABASE_SERVICE_ROLE_KEY=sua_service_role_key_aqui
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+CRON_SECRET=um_segredo_longo_e_aleatorio
 ```
+
+A lista completa de variáveis (incluindo as opcionais de sugestão por IA) está
+em `.env.local.example`.
 
 Para obter as chaves:
 1. No Dashboard do Supabase, vá em **Settings** → **API**
@@ -54,6 +67,26 @@ Para obter as chaves:
 ### 2.3. Deploy
 
 Clique em **Deploy** e aguarde o processo finalizar.
+
+### 2.4. Variáveis obrigatórias em produção
+
+Em **Settings → Environment Variables**, defina para *Production*:
+
+| Variável | Observação |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | chave pública (anon) |
+| `SUPABASE_SERVICE_ROLE_KEY` | chave privada — nunca prefixar com `NEXT_PUBLIC_` |
+| `NEXT_PUBLIC_APP_URL` | URL pública do app, usada nas origens permitidas das Server Actions |
+| `CRON_SECRET` | segredo do keep-alive; a Vercel o envia sozinha ao cron |
+
+### 2.5. Rotina que impede a pausa do Supabase
+
+`vercel.json` já agenda uma chamada diária a `/api/internal/keep-alive`, que
+mantém o projeto gratuito do Supabase fora da pausa por inatividade. Basta que
+`CRON_SECRET` exista nas variáveis de produção. Há uma redundância em
+`.github/workflows/keep-alive.yml` — veja
+[docs/manter-supabase-ativo.md](docs/manter-supabase-ativo.md).
 
 ## 3. Primeiro Acesso
 

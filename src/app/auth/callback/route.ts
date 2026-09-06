@@ -9,7 +9,11 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const next = searchParams.get("next") || "/dashboard";
-  const safeNext = next.startsWith("/") ? next : "/dashboard";
+  // "//host" e "/\host" também são absolutos para o navegador: só aceitamos
+  // caminhos internos, senão o link do e-mail vira um open redirect.
+  const isInternalPath =
+    next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\");
+  const safeNext = isInternalPath ? next : "/dashboard";
 
   if (code) {
     const supabase = await createClient();

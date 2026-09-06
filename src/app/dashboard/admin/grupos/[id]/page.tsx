@@ -1,24 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Card, Button } from "@/components/ui";
+import { MANAGER_ROLES, requireSession } from "@/lib/auth";
+import { Card, ConfirmSubmitButton } from "@/components/ui";
 import { addGroupMember, removeGroupMember, addGroupPermission, removeGroupPermission, deleteGroup } from "@/app/actions/groups";
 
 export default async function GrupoDetalhesPage({ params }: { params: { id: string } }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile || !["super_admin", "gestor"].includes(profile.role)) {
-    redirect("/dashboard");
-  }
+  const { supabase, profile } = await requireSession(MANAGER_ROLES);
 
   const { data: group, error } = await supabase
     .from("user_groups")
@@ -58,8 +45,7 @@ export default async function GrupoDetalhesPage({ params }: { params: { id: stri
   const memberIds = new Set(group.members.map((m: any) => m.user_id));
   const permissionIds = new Set(group.permissions.map((p: any) => p.permission_id));
 
-  const availableUsers = allUsers?.filter(u => !memberIds.has(u.id)) || [];
-  const availablePermissions = allPermissions?.filter(p => !permissionIds.has(p.id)) || [];
+  const availableUsers = allUsers?.filter((u) => !memberIds.has(u.id)) || [];
 
   const groupedPermissions = allPermissions?.reduce((acc: any, perm: any) => {
     if (!acc[perm.module]) acc[perm.module] = {};
@@ -83,7 +69,7 @@ export default async function GrupoDetalhesPage({ params }: { params: { id: stri
             <p className="text-sm text-gray-600 mt-1">{group.description}</p>
           )}
         </div>
-        {profile.role === "super_admin" && (
+        {profile?.role === "super_admin" && (
           <div className="flex gap-2">
             <Link
               href={`/dashboard/admin/grupos/${params.id}/editar`}
@@ -92,17 +78,12 @@ export default async function GrupoDetalhesPage({ params }: { params: { id: stri
               Editar
             </Link>
             <form action={deleteGroup.bind(null, params.id)}>
-              <button
-                type="submit"
+              <ConfirmSubmitButton
+                message="Tem certeza que deseja excluir este grupo?"
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                onClick={(e) => {
-                  if (!confirm("Tem certeza que deseja excluir este grupo?")) {
-                    e.preventDefault();
-                  }
-                }}
               >
                 Excluir
-              </button>
+              </ConfirmSubmitButton>
             </form>
           </div>
         )}
@@ -120,7 +101,7 @@ export default async function GrupoDetalhesPage({ params }: { params: { id: stri
                     Role: {member.profile.role}
                   </p>
                 </div>
-                {profile.role === "super_admin" && (
+                {profile?.role === "super_admin" && (
                   <form action={removeGroupMember.bind(null, params.id, member.user_id)}>
                     <button
                       type="submit"
@@ -133,7 +114,7 @@ export default async function GrupoDetalhesPage({ params }: { params: { id: stri
               </div>
             ))}
 
-            {profile.role === "super_admin" && availableUsers.length > 0 && (
+            {profile?.role === "super_admin" && availableUsers.length > 0 && (
               <div className="pt-3 border-t border-gray-200">
                 <p className="text-sm font-medium text-gray-700 mb-2">Adicionar membro:</p>
                 <form action={async (formData: FormData) => {
@@ -186,12 +167,12 @@ export default async function GrupoDetalhesPage({ params }: { params: { id: stri
                           >
                             <button
                               type="submit"
-                              disabled={profile.role !== "super_admin"}
+                              disabled={profile?.role !== "super_admin"}
                               className={`px-2 py-1 text-xs rounded ${
                                 hasPermission
                                   ? "bg-primary-100 text-primary-800"
                                   : "bg-gray-100 text-gray-600"
-                              } ${profile.role === "super_admin" ? "hover:opacity-75 cursor-pointer" : "cursor-default"}`}
+                              } ${profile?.role === "super_admin" ? "hover:opacity-75 cursor-pointer" : "cursor-default"}`}
                             >
                               {perm.action} {hasPermission && "✓"}
                             </button>

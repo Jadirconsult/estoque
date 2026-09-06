@@ -1,21 +1,13 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import type { Profile } from "@/types";
+import { requireSession } from "@/lib/auth";
+import { roleLabel } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProfilePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
+  const { profile } = await requireSession();
 
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
-  if (error || !profile) redirect("/auth/login");
+  if (!profile) redirect("/auth/login");
 
   return (
     <div className="space-y-6">
@@ -47,7 +39,7 @@ export default async function ProfilePage() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Função</p>
-              <p className="text-base font-medium text-gray-900">{profile.role.replace("_", " ")}</p>
+              <p className="text-base font-medium text-gray-900">{roleLabel(profile.role)}</p>
             </div>
           </div>
 

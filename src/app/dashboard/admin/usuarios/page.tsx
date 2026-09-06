@@ -1,21 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { MANAGER_ROLES, requireSession } from "@/lib/auth";
 import UsersClient from "./UsersClient";
 
 export default async function UsersPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!["super_admin", "gestor"].includes(profile?.role ?? "")) {
-    redirect("/dashboard");
-  }
+  const { supabase, profile } = await requireSession(MANAGER_ROLES);
 
   const { data: users } = await supabase
     .from("profiles")

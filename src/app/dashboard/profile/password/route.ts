@@ -1,31 +1,47 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 
-export const runtime = "edge";
+/** Mesma exigência do formulário de cadastro. */
+const MIN_PASSWORD_LENGTH = 6;
 
 export async function POST(request: Request) {
   const formData = await request.formData();
   const password = formData.get("password");
   const confirm = formData.get("confirm");
 
-  if (!password || !confirm || typeof password !== "string" || typeof confirm !== "string") {
+  if (
+    typeof password !== "string" ||
+    typeof confirm !== "string" ||
+    !password ||
+    !confirm
+  ) {
     return NextResponse.json({ error: "Preencha todos os campos." }, { status: 400 });
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return NextResponse.json(
+      { error: `A senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres.` },
+      { status: 400 }
+    );
   }
 
   if (password !== confirm) {
     return NextResponse.json({ error: "As senhas não coincidem." }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getSession();
   if (!user) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+    // 303 troca o POST por GET no destino; o padrão (307) reenviaria o POST.
+    return NextResponse.redirect(new URL("/auth/login", request.url), 303);
   }
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Não foi possível atualizar a senha." },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.redirect(new URL("/dashboard/profile", request.url));
+  return NextResponse.redirect(new URL("/dashboard/profile", request.url), 303);
 }

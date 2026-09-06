@@ -1,7 +1,20 @@
-.env.local
-.env
+# dependências
 node_modules
+
+# build
 .next
 out
-.vercel
+tsconfig.tsbuildinfo
+*.log
+
+# ambiente
+.env
 .env*
+.env.local
+
+# deploy
+.vercel
+
+# Supabase CLI (estado local da máquina)
+supabase/.temp
+supabase/.branches

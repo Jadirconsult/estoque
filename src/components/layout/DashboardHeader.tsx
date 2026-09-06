@@ -4,9 +4,18 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import SuggestImprovementModal from "@/components/suggestions/SuggestImprovementModal";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import UserMenu from "@/components/layout/UserMenu";
+import { formatDate } from "@/lib/labels";
 import type { Notification } from "@/types/database";
+import type { Profile } from "@/types";
 
-export default function DashboardHeader() {
+export default function DashboardHeader({
+  profile,
+  onOpenMenu,
+}: {
+  profile: Profile;
+  onOpenMenu?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -15,9 +24,17 @@ export default function DashboardHeader() {
   useEffect(() => {
     async function loadNotifications() {
       const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Filtro explícito por usuário: não depender apenas do RLS para
+      // não vazar notificações de terceiros se a política mudar.
       const { data, error } = await supabase
         .from("notifications")
         .select("id, user_id, title, message, is_read, created_at, updated_at")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(5);
 
@@ -56,7 +73,20 @@ export default function DashboardHeader() {
 
   return (
     <>
-      <div className="neo-panel flex items-center justify-end gap-3 mb-7 relative px-3 py-2.5 rounded-[1.6rem]">
+      <div className="neo-panel mb-6 flex flex-wrap items-center justify-end gap-2 rounded-[1.6rem] px-3 py-2.5 sm:gap-3 sm:mb-7">
+        {onOpenMenu && (
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            aria-label="Abrir menu"
+            className="neo-button mr-auto inline-flex h-11 w-11 items-center justify-center rounded-full text-[var(--text)] transition-all focus:outline-none focus:ring-2 focus:ring-primary-500/30 lg:hidden"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        )}
+
         <div className="relative">
           <button
             type="button"
@@ -118,11 +148,7 @@ export default function DashboardHeader() {
                         {notification.message}
                       </p>
                       <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-[var(--muted)]">
-                        {new Date(notification.created_at).toLocaleDateString("pt-BR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "2-digit",
-                        })}
+                        {formatDate(notification.created_at)}
                       </p>
                     </div>
                   ))
@@ -156,6 +182,8 @@ export default function DashboardHeader() {
           </span>
           <span className="hidden sm:inline">Sugerir uma melhoria</span>
         </button>
+
+        <UserMenu profile={profile} />
       </div>
 
       <SuggestImprovementModal open={open} onClose={() => setOpen(false)} />

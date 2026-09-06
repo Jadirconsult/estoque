@@ -1,17 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import type { MovementWithDetails } from "@/types";
+import { isManager, requireSession } from "@/lib/auth";
+import { roleLabel } from "@/lib/labels";
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const { supabase, profile } = await requireSession();
+  const showUserCount = isManager(profile?.role);
 
   const { count: totalProducts } = await supabase
     .from("products")
@@ -28,9 +20,10 @@ export default async function DashboardPage() {
     .from("categories")
     .select("*", { count: "exact", head: true });
 
-  const { count: totalUsers } = await supabase
-    .from("profiles")
-    .select("*", { count: "exact", head: true });
+  // A contagem só aparece para gestao: nao consultamos quando nao sera exibida.
+  const { count: totalUsers } = showUserCount
+    ? await supabase.from("profiles").select("*", { count: "exact", head: true })
+    : { count: null };
 
   const { data: recentMovements } = await supabase
     .from("movements")
@@ -48,7 +41,7 @@ export default async function DashboardPage() {
         Olá, {profile?.full_name || profile?.email}
       </h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 xl:grid-cols-4">
         <div className="bg-white rounded-xl shadow-sm p-6">
           <p className="text-sm text-gray-500">Total de Produtos</p>
           <p className="text-3xl font-bold text-blue-600 mt-1">{totalProducts ?? 0}</p>
@@ -61,7 +54,7 @@ export default async function DashboardPage() {
           <p className="text-sm text-gray-500">Categorias</p>
           <p className="text-3xl font-bold text-green-600 mt-1">{totalCategories ?? 0}</p>
         </div>
-        {(profile?.role === "super_admin" || profile?.role === "gestor") && (
+        {showUserCount && (
           <div className="bg-white rounded-xl shadow-sm p-6">
             <p className="text-sm text-gray-500">Usuários</p>
             <p className="text-3xl font-bold text-purple-600 mt-1">{totalUsers ?? 0}</p>
@@ -101,9 +94,7 @@ export default async function DashboardPage() {
           <p className="text-sm text-gray-600">Email: {profile?.email}</p>
           <p className="text-sm text-gray-600 mt-1">
             Função:{" "}
-            <span className="font-medium capitalize">
-              {profile?.role?.replace("_", " ")}
-            </span>
+            <span className="font-medium">{roleLabel(profile?.role)}</span>
           </p>
         </div>
       </div>

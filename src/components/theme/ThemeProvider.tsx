@@ -30,7 +30,6 @@ function applyTheme(theme: Theme) {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     try {
@@ -47,7 +46,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch {
       applyTheme("light");
     }
-    setReady(true);
   }, []);
 
   const setTheme = useCallback((next: Theme) => {
@@ -69,15 +67,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     [theme, setTheme, toggleTheme]
   );
 
-  // Evita flash de conteúdo sem tema aplicado
-  if (!ready) {
-    return (
-      <ThemeContext.Provider value={value}>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-950" />
-      </ThemeContext.Provider>
-    );
-  }
-
+  // O anti-flash é feito pelo ThemeScript, antes da hidratação (ver theme-script.tsx).
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );

@@ -1,55 +1,24 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { isManager, requireSession } from "@/lib/auth";
+import {
+  formatDate,
+  priorityClass,
+  priorityLabel,
+  protocolStatusClass,
+  protocolStatusLabel,
+} from "@/lib/labels";
 import type { Protocol } from "@/types/database";
 
-function getStatusClass(status: string) {
-  switch (status) {
-    case "aberto":
-      return "bg-blue-100 text-blue-800";
-    case "em_andamento":
-      return "bg-yellow-100 text-yellow-800";
-    case "concluido":
-      return "bg-green-100 text-green-800";
-    case "cancelado":
-      return "bg-red-100 text-red-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-}
-
-function getPriorityClass(priority: string) {
-  switch (priority) {
-    case "alta":
-      return "bg-red-100 text-red-800";
-    case "media":
-      return "bg-yellow-100 text-yellow-800";
-    case "baixa":
-      return "bg-green-100 text-green-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-}
-
 export default async function ProtocolosPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const canManage = profile?.role && ["super_admin", "gestor"].includes(profile.role);
+  const { supabase, user, profile } = await requireSession();
+  const canManage = isManager(profile?.role);
 
   let query = supabase
     .from("protocolos")
     .select(`
       *,
-      requester:profiles(id, full_name, email),
-      assigned_to:profiles(id, full_name, email)
+      requester:profiles!protocolos_requester_id_fkey(id, full_name, email),
+      assigned_to:profiles!protocolos_assigned_to_fkey(id, full_name, email)
     `)
     .order("created_at", { ascending: false });
 
@@ -61,7 +30,7 @@ export default async function ProtocolosPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Protocolos</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -116,13 +85,13 @@ export default async function ProtocolosPage() {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">{protocol.title}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getStatusClass(protocol.status)}`}>
-                        {protocol.status.replace("_", " ")}
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${protocolStatusClass(protocol.status)}`}>
+                        {protocolStatusLabel(protocol.status)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getPriorityClass(protocol.priority)}`}>
-                        {protocol.priority}
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${priorityClass(protocol.priority)}`}>
+                        {priorityLabel(protocol.priority)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -132,7 +101,7 @@ export default async function ProtocolosPage() {
                       {protocol.assigned_to?.full_name || protocol.assigned_to?.email || "—"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(protocol.updated_at).toLocaleDateString("pt-BR")}
+                      {formatDate(protocol.updated_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <Link

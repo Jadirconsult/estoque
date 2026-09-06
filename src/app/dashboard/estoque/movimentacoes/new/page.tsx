@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SuggestWithAi from "@/components/ai/SuggestWithAi";
 import type { MovementType, Product } from "@/types/database";
 
-export default function NewMovementPage() {
+function NewMovementForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({
-    product_id: "",
-    type: "entrada" as "entrada" | "saida",
+    product_id: searchParams.get("product") ?? "",
+    type: (searchParams.get("type") === "saida" ? "saida" : "entrada") as MovementType,
     quantity: 0,
     reason: "",
     notes: "",
@@ -45,22 +47,30 @@ export default function NewMovementPage() {
     e.preventDefault();
     setLoading(true);
 
+    setError(null);
+
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (formData.type === "saida" && selectedProduct && formData.quantity > selectedProduct.quantity_current) {
-      alert("Quantidade solicitada maior que o estoque disponível!");
+    if (!user) {
+      setError("Sessão expirada. Entre novamente.");
       setLoading(false);
       return;
     }
 
-    const { error } = await supabase.from("movements").insert({
+    if (formData.type === "saida" && selectedProduct && formData.quantity > selectedProduct.quantity_current) {
+      setError("Quantidade solicitada maior que o estoque disponível.");
+      setLoading(false);
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("movements").insert({
       ...formData,
-      created_by: user?.id,
+      created_by: user.id,
     });
 
-    if (error) {
-      alert("Erro ao registrar movimentação: " + error.message);
+    if (insertError) {
+      setError("Erro ao registrar movimentação: " + insertError.message);
       setLoading(false);
       return;
     }
@@ -81,7 +91,7 @@ export default function NewMovementPage() {
             <select
               required
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value as "entrada" | "saida" })}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as MovementType })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="entrada">Entrada</option>
@@ -208,6 +218,12 @@ export default function NewMovementPage() {
             />
           </div>
 
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
@@ -227,5 +243,13 @@ export default function NewMovementPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function NewMovementPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-gray-500">Carregando...</p>}>
+      <NewMovementForm />
+    </Suspense>
   );
 }

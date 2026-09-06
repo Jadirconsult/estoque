@@ -6,7 +6,6 @@ import {
   clarifyImprovementIdea,
   summarizeImprovementIdea,
 } from "@/app/actions/ai-suggest";
-import { buildSummary, clarifyIdea } from "@/lib/suggestions/clarify";
 import type {
   ImprovementSuggestion,
   SuggestionMessage,
@@ -108,42 +107,28 @@ export default function SuggestImprovementModal({
 
     try {
       const result = await clarifyImprovementIdea(next);
+
       if (!result.ok) {
-        const local = clarifyIdea(next);
-        const assistantMsg: SuggestionMessage = {
-          role: "assistant",
-          content: local.reply,
-          at: new Date().toISOString(),
-        };
-        setMessages([...next, assistantMsg]);
-        setReady(local.ready_for_summary);
-        setAiMeta("Modo local");
-      } else {
-        const assistantMsg: SuggestionMessage = {
-          role: "assistant",
-          content: result.reply,
-          at: new Date().toISOString(),
-        };
-        setMessages([...next, assistantMsg]);
-        setReady(result.ready_for_summary);
-        setAiMeta(
-          result.source === "ai"
-            ? "Sugestão gerada por IA — revise antes de enviar"
-            : "Modo local (IA indisponível ou sem chave)"
-        );
+        setError(result.message);
+        return;
       }
-    } catch {
-      const local = clarifyIdea(next);
+
       setMessages([
         ...next,
         {
           role: "assistant",
-          content: local.reply,
+          content: result.reply,
           at: new Date().toISOString(),
         },
       ]);
-      setReady(local.ready_for_summary);
-      setAiMeta("Modo local");
+      setReady(result.ready_for_summary);
+      setAiMeta(
+        result.source === "ai"
+          ? "Sugestão gerada por IA — revise antes de enviar"
+          : "Modo local (IA indisponível ou sem chave)"
+      );
+    } catch {
+      setError("Não foi possível responder agora. Tente novamente.");
     } finally {
       setThinking(false);
     }
@@ -188,10 +173,7 @@ export default function SuggestImprovementModal({
       );
       setStep("summary");
     } catch {
-      const built = buildSummary(messages);
-      setSummary(built);
-      setAiMeta("Resumo local");
-      setStep("summary");
+      setError("Não foi possível gerar o resumo agora. Tente novamente.");
     } finally {
       setThinking(false);
     }

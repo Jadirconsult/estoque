@@ -1,11 +1,16 @@
-const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+// Origens autorizadas para Server Actions. Além do desenvolvimento local,
+// aceitamos a URL pública configurada e o domínio de produção da Vercel
+// (VERCEL_URL muda a cada deploy de preview).
 const allowedOrigins = ["localhost:3000", "ocral.vercel.app"];
 
-if (appUrl) {
+for (const value of [process.env.NEXT_PUBLIC_APP_URL, process.env.VERCEL_URL]) {
+  if (!value) continue;
   try {
-    allowedOrigins.push(new URL(appUrl).host);
+    // VERCEL_URL vem sem protocolo; NEXT_PUBLIC_APP_URL vem com.
+    const host = new URL(value.includes("://") ? value : `https://${value}`).host;
+    if (!allowedOrigins.includes(host)) allowedOrigins.push(host);
   } catch {
-    // O deploy continua funcional; a variável será corrigida pelo ambiente.
+    // Origem inválida não derruba o build; o deploy segue com os padrões.
   }
 }
 
