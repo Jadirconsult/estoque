@@ -29,7 +29,9 @@ export default function ErrorState({
   fullScreen = false,
 }: ErrorStateProps) {
   useEffect(() => {
-    console.error(`${logLabel}:`, error);
+    // Argumentos separados em vez de template string: interpolar uma variável
+    // no primeiro parâmetro do console permitiria forjar a linha de log.
+    console.error(logLabel, error);
   }, [error, logLabel]);
 
   return (
